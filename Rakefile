@@ -1,22 +1,10 @@
 require 'yaml'
 require 'rdiscount'
+require 'minimal'
 
-CONFIG_FILE = 'minimal.yaml'
+db = $conf[:database][:database]
 
-$conf = {}
-$conf.merge!( YAML.load_file(CONFIG_FILE) ) { |key, v1, v2|
-	if v1.class == Hash and v2.class == Hash
-		v1.merge v2
-	else
-		v2
-	end
-}
-$conf['dirs'] = $conf['directories']
-# puts $conf.inspect
-
-db = $conf['database']['database']
-
-$conf['dirs'].values.each do |dir|
+$dirs.each do |key,dir|
 	directory dir
 end
 
@@ -26,8 +14,8 @@ task :environment => "camping:environment"
 
 namespace :minimal do
 	desc "Read files into database"
-	task :generate => [:environment,db] + $conf['dirs'].values do
-		FileList["#{$conf['dirs']['articles']}/*"].each do |filename|
+	task :generate => [:environment,db] + $dirs.values do
+		FileList["#{$dirs[:articles]}/*"].each do |filename|
 			if File.file? filename
 				basename = File.basename(filename)
 				updated = File.mtime filename
@@ -50,7 +38,7 @@ namespace :minimal do
 				end
 			end
 		end
-		FileList["#{$conf['dirs']['deleted']}/*"].each do |filename|
+		FileList["#{$dirs[:deleted]}/*"].each do |filename|
 			if File.file? filename
 				basename = File.basename(filename)
 				article = Minimal::Models::Article.find_by_filename(basename)
@@ -59,6 +47,13 @@ namespace :minimal do
 					puts "#{basename}:\tRemoved"
 				end
 			end
+		end
+	end
+	
+	desc "Write configuration to file"
+	task :write_configuration do
+		File.open( CONFIG_FILE, 'w' ) do |file|
+			YAML.dump( $conf, file )
 		end
 	end
 	
@@ -80,7 +75,6 @@ namespace :minimal do
 	end
 end
 namespace :camping do
-
 	desc "Start the webrick server"
 	task :server => db do
 		sh "camping -s webrick -d #{db} minimal.rb"
@@ -89,7 +83,7 @@ namespace :camping do
 	desc "Establish the camping environment"
 	task :environment do
 		require 'minimal'
-		Minimal::Models::Base.establish_connection($conf['database'])
+		Minimal::Models::Base.establish_connection($conf[:database])
 	end
 	
 	file db => :environment do

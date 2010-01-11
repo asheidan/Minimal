@@ -9,6 +9,45 @@ class Time
 		strftime("%H:%M %d %B %Y")
 	end
 end
+class Hash
+	def deep_merge!(other)
+		merge!(other) { |key, v1, v2|
+			if v1.class == Hash and v2.class == Hash
+				v1.deep_merge v2
+			else
+				v2
+			end
+		}
+	end
+	
+	def deep_merge(other)
+		merge(other) { |key, v1, v2|
+			if v1.class == Hash and v2.class == Hash
+				v1.deep_merge v2
+			else
+				v2
+			end
+		}
+	end
+end
+
+CONFIG_FILE = 'minimal.yaml'
+
+$conf = {
+	:language => :en,
+	:database => {
+		:adapter => 'sqlite3',
+		:database => 'minimal.db'
+	},
+	:directories => {
+		:articles => 'articles',
+		:deleted => 'articles/deleted'
+	}
+}
+$conf.deep_merge!( YAML.load_file(CONFIG_FILE) ) if File.file? CONFIG_FILE
+$dirs = $conf[:directories]
+# puts $conf.inspect
+
 I18n.backend.store_translations :en, {
 	:less_than_x_minutes => {
 		:one => 'less than a minute',
@@ -175,13 +214,14 @@ module Minimal::Views
 		div :class => 'footer' do
 			div :class => 'content' do
 				a 'Index', :href => R(Index), :class => 'left'
-				div "#{time_ago_in_words(@article.updated_at)} ago", :class => 'right'
-				div :class => 'right',:style => "clear:right;" do
+				div "updated #{time_ago_in_words(@article.updated_at)} ago", :class => 'right'
+				div "created #{time_ago_in_words(@article.created_at)} ago", :class => 'right', :style => "clear: right;"
+				div @article.title
+				div do
 					@article.tags.split(/ *, */).collect do |t|
 						a( t, :href => R(TagX,t) ).to_s
 					end.join(', ')
 				end
-				div @article.title
 				div :class => 'achor'
 			end
 		end
@@ -189,10 +229,7 @@ module Minimal::Views
 end
 
 def Minimal.create
-	I18n.default_locale = :en
-	Minimal::Models::Base.establish_connection(
-		:adapter => 'sqlite3',
-		:database => 'minimal.db'
-	)
+	I18n.default_locale = $conf[:language]
+	Minimal::Models::Base.establish_connection($conf[:database])
 	Minimal::Models.create_schema
 end

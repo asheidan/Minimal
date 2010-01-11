@@ -1,7 +1,0 @@
-directories:
-  articles: articles
-  deleted: articles/deleted
-
-database :
-  adapter: sqlite3
-  database: minimal.db
