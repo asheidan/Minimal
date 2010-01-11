@@ -68,6 +68,11 @@ I18n.backend.store_translations :en, {
 }
 
 module Minimal::Helpers
+	
+	def pluralize(count, singular, plural = nil)
+		"#{count || 0} " + ((count == 1 || count == '1') ? singular : (plural || singular.pluralize))
+	end
+	
 	def locale
 		I18n
 	end
@@ -110,7 +115,9 @@ end
 module Minimal::Models
 	class Article < Base
 		validates_presence_of :title
-		
+		def changed_since_creation
+			created_at != updated_at
+		end
 		def self.find_by_tag(name,opts = {})
 			s_opts = {:conditions => ["tags LIKE ?","%#{name}%"]}
 			opts.merge! s_opts
@@ -155,6 +162,7 @@ module Minimal::Controllers
 		def get(title)
 			@article = Article.find_by_title(title)
 			unless @article.nil?
+				@title = @article.title
 				render :article
 			else
 				redirect Index
@@ -199,9 +207,26 @@ module Minimal::Views
 	
 	def list
 		h1 @title
+		strong :style => "margin-bottom: 5px;" do
+			div 'tags', :class => 'right'
+			div 'Title'
+		end					
 		@articles.each do |article|
 			div do
+				div :class => 'right' do
+					article.tags.split(/ *, */).collect do |t|
+						a( t, :href => R(TagX,t) ).to_s
+					end.join(', ')
+				end
 				a article.title, :href => R(ArticleX, article.title)
+			end
+		end
+		div :class => 'footer' do
+			div :class => 'content' do
+				a 'Index', :href => R(Index), :class => 'left'
+				div "#{pluralize(@articles.count,'article','articles')}", :class => 'right'
+				div @title
+				div :class => 'achor'
 			end
 		end
 	end
@@ -214,7 +239,7 @@ module Minimal::Views
 		div :class => 'footer' do
 			div :class => 'content' do
 				a 'Index', :href => R(Index), :class => 'left'
-				div "updated #{time_ago_in_words(@article.updated_at)} ago", :class => 'right'
+				div ("updated #{time_ago_in_words(@article.updated_at)} ago", :class => 'right') if @article.changed_since_creation
 				div "created #{time_ago_in_words(@article.created_at)} ago", :class => 'right', :style => "clear: right;"
 				div @article.title
 				div do

@@ -8,11 +8,27 @@ $dirs.each do |key,dir|
 	directory dir
 end
 
+task :new,[:title] do |t,args|
+	Rake::Task["minimal:new"].invoke( args.title )
+end
 task :generate => "minimal:generate"
 task :server => "camping:server"
 task :environment => "camping:environment"
 
 namespace :minimal do
+	desc "Create new article"
+	task :new, [:title] do |t,args|
+		cleaned_title = args.title.gsub(/[^a-zA-Z ]/,'').gsub(' ','_').downcase
+		filename = File.join($dirs[:articles],cleaned_title + '.markdown')
+		File.open(filename,'w+') do |template|
+			template.puts "# #{args.title}"
+			template.puts
+			template.puts "tags: "
+			template.puts
+		end
+		sh "#{$conf[:editor]} #{filename}"
+	end
+	
 	desc "Read files into database"
 	task :generate => [:environment,db] + $dirs.values do
 		FileList["#{$dirs[:articles]}/*"].each do |filename|
