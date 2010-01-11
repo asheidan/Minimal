@@ -1,11 +1,70 @@
 require 'camping'
 require 'less'
+require 'i18n'
 
 Camping.goes :Minimal
 
 class Time
 	def to_s
 		strftime("%H:%M %d %B %Y")
+	end
+end
+I18n.backend.store_translations :en, {
+	:less_than_x_minutes => {
+		:one => 'less than a minute',
+		:one => 'less than {{count}} minutes'
+	},
+	:x_minutes => {
+		:one => 'a minute',
+		:other => '{{count}} minutes'
+	},
+	:about_x_hours => {
+		:one => 'about an hour',
+		:other => 'about {{count}} hours'
+	},
+	:x_days => {
+		:one => 'a day',
+		:other => '{{count}} days'
+	}
+}
+
+module Minimal::Helpers
+	def locale
+		I18n
+	end
+	def time_ago_in_words(from_time, include_seconds = false)
+		distance_of_time_in_words(from_time, Time.now, include_seconds)
+	end
+	def distance_of_time_in_words(from_time, to_time = 0, include_seconds = false, options = {})
+		from_time = from_time.to_time if from_time.respond_to?(:to_time)
+		to_time = to_time.to_time if to_time.respond_to?(:to_time)
+		distance_in_minutes = (((to_time - from_time).abs)/60).round
+		distance_in_seconds = ((to_time - from_time).abs).round
+		case distance_in_minutes
+			when 0..1
+				return distance_in_minutes == 0 ?
+					locale.t(:less_than_x_minutes, :count => 1) :
+					locale.t(:x_minutes, :count => distance_in_minutes) unless include_seconds
+
+				case distance_in_seconds
+					when 0..4   then locale.t :less_than_x_seconds, :count => 5
+					when 5..9   then locale.t :less_than_x_seconds, :count => 10
+					when 10..19 then locale.t :less_than_x_seconds, :count => 20
+					when 20..39 then locale.t :half_a_minute
+					when 40..59 then locale.t :less_than_x_minutes, :count => 1
+					else             locale.t :x_minutes,           :count => 1
+				end
+
+			when 2..44           then locale.t :x_minutes,      :count => distance_in_minutes
+			when 45..89          then locale.t :about_x_hours,  :count => 1
+			when 90..1439        then locale.t :about_x_hours,  :count => (distance_in_minutes.to_f / 60.0).round
+			when 1440..2879      then locale.t :x_days,         :count => 1
+			when 2880..43199     then locale.t :x_days,         :count => (distance_in_minutes / 1440).round
+			when 43200..86399    then locale.t :about_x_months, :count => 1
+			when 86400..525599   then locale.t :x_months,       :count => (distance_in_minutes / 43200).round
+			when 525600..1051199 then locale.t :about_x_years,  :count => 1
+			else                      locale.t :over_x_years,   :count => (distance_in_minutes / 525600).round
+		end
 	end
 end
 
@@ -56,7 +115,11 @@ module Minimal::Controllers
 	class ArticleX
 		def get(title)
 			@article = Article.find_by_title(title)
-			render :article
+			unless @article.nil?
+				render :article
+			else
+				redirect Index
+			end
 		end
 	end
 
@@ -98,7 +161,9 @@ module Minimal::Views
 	def list
 		h1 @title
 		@articles.each do |article|
-			a article.title, :href => R(ArticleX, article.title)
+			div do
+				a article.title, :href => R(ArticleX, article.title)
+			end
 		end
 	end
 	
@@ -110,19 +175,21 @@ module Minimal::Views
 		div :class => 'footer' do
 			div :class => 'content' do
 				a 'Index', :href => R(Index), :class => 'left'
-				div @article.updated_at, :class => 'right'
-				div :class => 'right' do
+				div "#{time_ago_in_words(@article.updated_at)} ago", :class => 'right'
+				div :class => 'right',:style => "clear:right;" do
 					@article.tags.split(/ *, */).collect do |t|
 						a( t, :href => R(TagX,t) ).to_s
 					end.join(', ')
 				end
 				div @article.title
+				div :class => 'achor'
 			end
 		end
 	end
 end
 
 def Minimal.create
+	I18n.default_locale = :en
 	Minimal::Models::Base.establish_connection(
 		:adapter => 'sqlite3',
 		:database => 'minimal.db'
