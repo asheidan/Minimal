@@ -33,8 +33,9 @@ end
 
 CONFIG_FILE = 'minimal.yaml'
 
-$conf = {
+CONF = {
 	:language => :en,
+	:editor => "vim",
 	:database => {
 		:adapter => 'sqlite3',
 		:database => 'minimal.db'
@@ -42,11 +43,14 @@ $conf = {
 	:directories => {
 		:articles => 'articles',
 		:deleted => 'articles/deleted'
+	},
+	:git => {
+		:branch => 'articles'
 	}
 }
-$conf.deep_merge!( YAML.load_file(CONFIG_FILE) ) if File.file? CONFIG_FILE
-$dirs = $conf[:directories]
-# puts $conf.inspect
+CONF.deep_merge!( YAML.load_file(CONFIG_FILE) ) if File.file? CONFIG_FILE
+$dirs = CONF[:directories]
+# puts CONF.inspect
 
 I18n.backend.store_translations :en, {
 	:less_than_x_minutes => {
@@ -173,7 +177,7 @@ module Minimal
 	
 		class ArticleX
 			def get(title)
-				@article = Article.find_by_title(title)
+				@article = Article.find_by_title(title,:order => 'updated_at DESC')
 				unless @article.nil?
 					@title = @article.title
 					render :article
@@ -185,7 +189,7 @@ module Minimal
 
 		class TagX
 			def get(name)
-				@articles = Article.find_by_tag(name)
+				@articles = Article.find_by_tag(name,:order => 'updated_at DESC')
 				@title = "Articles tagged with #{name}"
 				render :list
 			end
@@ -301,7 +305,7 @@ module Minimal
 	end
 end
 def Minimal.create
-	I18n.default_locale = $conf[:language]
-	Minimal::Models::Base.establish_connection($conf[:database])
+	I18n.default_locale = CONF[:language]
+	Minimal::Models::Base.establish_connection(CONF[:database])
 	Minimal::Models.create_schema
 end

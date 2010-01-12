@@ -1,8 +1,12 @@
+require 'rubygems'
 require 'yaml'
 require 'rdiscount'
 require 'minimal'
+require 'git'
 
-db = $conf[:database][:database]
+RakeFileUtils.verbose(!!CONF[:debug])
+
+db = CONF[:database][:database]
 
 $dirs.each do |key,dir|
 	directory dir
@@ -14,7 +18,6 @@ end
 task :generate => "minimal:generate"
 task :server => "camping:server"
 task :environment => "camping:environment"
-
 namespace :minimal do
 	desc "Create new article"
 	task :new, [:title] do |t,args|
@@ -26,7 +29,7 @@ namespace :minimal do
 			template.puts "tags: "
 			template.puts
 		end
-		sh "#{$conf[:editor]} #{filename}"
+		sh "#{CONF[:editor]} #{filename}"
 	end
 	
 	desc "Read files into database"
@@ -66,13 +69,18 @@ namespace :minimal do
 		end
 	end
 	
-	desc "Write configuration to file"
-	task :write_configuration do
-		File.open( CONFIG_FILE, 'w' ) do |file|
-			YAML.dump( $conf, file )
+	desc "Displays current configuration"
+	task :config do
+		puts YAML.dump( CONF )
+	end
+	namespace :config do
+		desc "Write configuration to file"
+		task :write do
+			File.open( CONFIG_FILE, 'w' ) do |file|
+				YAML.dump( CONF, file )
+			end
 		end
 	end
-	
 	def parse_markdown_article(filename, article)
 		tag_re = /^tags: *(.*)/
 		title_re = /^# *([^#].*)/
@@ -99,10 +107,52 @@ namespace :camping do
 	desc "Establish the camping environment"
 	task :environment do
 		require 'minimal'
-		Minimal::Models::Base.establish_connection($conf[:database])
+		Minimal::Models::Base.establish_connection(CONF[:database])
 	end
 	
 	file db => :environment do
 		Minimal::Models.create_schema
+	end
+end
+namespace :remote do
+	def parse_git_config
+		#File.
+	end
+end
+namespace :git do
+	def add(path)
+		if File.file?(path) or File.directory?(path)
+			sh "git add -v #{path}"
+		end
+	end
+	
+	#directory ".git"
+	file ".git" do
+		puts "You should already have a repository"
+		# sh "git init"
+	end
+	desc "Creates a git repository"
+	task :create => ".git"
+	
+	desc "Makes sure we're on the articles branch"
+	task :branch => ".git" do
+		sh( "git checkout #{CONF[:git][:branch]}" )
+		#sh( "git checkout pudding} > /dev/null" )
+	end
+	
+	desc "Adds articles to git index"
+	task :add => :branch do
+		add($dirs[:articles])
+		add($dirs[:deleted])
+	end
+	
+	desc "Commits articles to repository"
+	task :commit => [:add,:branch] do
+		puts "Commit of articles"
+	end
+	
+	desc "Pushes articles to remote"
+	task :push => :branch do
+		sh "git push"
 	end
 end
